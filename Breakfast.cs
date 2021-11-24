@@ -39,7 +39,7 @@ namespace Breakfast
                     bread.Done += (sender, args) =>
                     {
                         cookingSlicesOfBread.Remove(bread);
-                        fryingPan.Remove(bread);
+                        toaster.Remove(bread);
                     };
 
                     return bread;
