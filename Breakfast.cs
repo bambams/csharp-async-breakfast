@@ -1,76 +1,93 @@
-namespace Breakfast
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace AsyncBreakfast
 {
-    public class Program
+    public class ExampleProgram
     {
+        public async static Task<int> Main(string[] args)
+        {
+            return await new ExampleProgram().RunAsync(args);
+        }
+
         public async Task<int> RunAsync(string[] args)
         {
             try
             {
-                var cookingEggs = new List<ICookable>();
-                var cookingSlicesOfBacon = new List<ICookable>();
-                var cookingSlicesOfBread = new List<ICookable>();
+                var garbage = new Stack<object>();
 
-                var burned = new List<ICookable>();
-                var cookedEggs = new List<ICookable>();
-                var cookedSlicesOfBacon = new List<ICookable>();
-                var slicesOfToast = new List<ICookable>();
+                var cooking = new Dictionary<string,List<ICookable>>
+                {
+                    { "eggs", new List<ICookable>() },
+                    { "slicesOfBacon", new List<ICookable>() },
+                    { "slicesOfBread", new List<ICookable>() },
+                };
+
+                var plate = new Dictionary<string,List<ICookable>>
+                {
+                    { "eggs", new List<ICookable>() },
+                    { "slicesOfBacon", new List<ICookable>() },
+                    { "slicesOfToast", new List<ICookable>() },
+                };
 
                 FryingPan fryingPan = null;
                 Toaster toaster = null;
 
                 Func<Bacon, Bacon> applyBaconEvents = bacon =>
                 {
-                    bacon.Burned += (sender, args) => burned.Add(bacon);
-                    bacon.Cooked += (sender, args) => cookedSlicesOfBacon.Add(bacon);
+                    bacon.Burned += (sender, args) => garbage.Push(bacon);
+                    bacon.Cooked += (sender, args) => plate["slicesOfBacon"].Add(bacon);
 
                     bacon.Done += (sender, args) =>
                     {
-                        cookingSlicesOfBacon.Remove(bacon);
+                        cooking["slicesOfBacon"].Remove(bacon);
                         fryingPan.Remove(bacon);
                     };
 
                     return bacon;
                 };
 
-                Func<Bread, Bread> applyBreadEvents = bread =>
+                Func<Bread, Bread> applyBreadEvents = b =>
                 {
-                    bread.Burned += (sender, args) => slicesOfToast.Add(bread);
+                    b.Burned += (sender, args) => plate["slicesOfToast"].Add(b);
 
-                    bread.Done += (sender, args) =>
+                    b.Done += (sender, args) =>
                     {
-                        cookingSlicesOfBread.Remove(bread);
-                        toaster.Remove(bread);
+                        cooking["slicesOfBread"].Remove(b);
+                        toaster.Remove(b);
                     };
 
-                    return bread;
+                    return b;
                 };
 
-                Func<Egg, Egg> applyEggEvents = egg =>
+                Func<Egg, Egg> applyEggEvents = e =>
                 {
-                    egg.Burned += (sender, args) => burned.Add(egg);
-                    egg.Cooked += (sender, args) => cookedEggs.Add(egg);
+                    e.Burned += (sender, args) => garbage.Push(e);
+                    e.Cooked += (sender, args) => plate["eggs"].Add(e);
 
-                    egg.Done += (sender, args) =>
+                    e.Done += (sender, args) =>
                     {
-                        cookingEggs.Remove(egg);
-                        fryingPan.Remove(egg);
+                        cooking["eggs"].Remove(e);
+                        fryingPan.Remove(e);
                     };
 
-                    return egg;
+                    return e;
                 };
 
                 Func<FryingPan, FryingPan> applyFryingPanEvents = fp =>
                 {
-                    fp.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fryingPan.Name} {fryingPan.Id}...");
-                    fp.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fryingPan.Name} {fryingPan.Id}...");
+                    fp.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fp.Name} {fp.Id}...");
+                    fp.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fp.Name} {fp.Id}...");
 
                     return fp;
                 };
 
                 Func<Toaster, Toaster> applyToasterEvents = t =>
                 {
-                    t.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {toaster.Name} {toaster.Id}...");
-                    t.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {toaster.Name} {toaster.Id}...");
+                    t.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {t.Name} {t.Id}...");
+                    t.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {t.Name} {t.Id}...");
 
                     return t;
                 };
@@ -89,24 +106,24 @@ namespace Breakfast
 
                 var batches = new List<List<ICookable>>
                 {
-                    cookingSlicesOfBread,
-                    cookingSlicesOfBacon,
-                    cookingEggs,
+                    cooking["slicesOfBread"],
+                    cooking["slicesOfBacon"],
+                    cooking["eggs"],
                 };
 
                 for (int i=0, l=2; i<l; i++)
                 {
-                    cookingSlicesOfBread.Add(createBread());
+                    cooking["slicesOfBread"].Add(createBread());
                 }
 
                 for (int i=0, l=3; i<l; i++)
                 {
-                    cookingEggs.Add(createEgg());
+                    cooking["eggs"].Add(createEgg());
                 }
 
                 for (int i=0, l=3; i<l; i++)
                 {
-                    cookingSlicesOfBacon.Add(createBacon());
+                    cooking["slicesOfBacon"].Add(createBacon());
                 }
 
                 while (batches.Any())
@@ -115,7 +132,7 @@ namespace Breakfast
                     {
                         foreach (var batch in batches)
                         {
-                            BaseCooker cooker = batch == cookingSlicesOfBread ? toaster : fryingPan;
+                            BaseCooker cooker = batch == cooking["slicesOfBread"] ? toaster : fryingPan;
 
                             if (batch.Count <= cooker.Space)
                             {
@@ -138,12 +155,19 @@ namespace Breakfast
                     }
                 }
 
-                Console.Error.WriteLine($"Breakfast is ready! Breakfast consists of {slicesOfToast.Count} slices of toast, {cookedEggs.Count} eggs, and {cookedSlicesOfBacon.Count} slices of bacon.");
-                Console.Error.WriteLine($"We wasted {burned.Count} items:");
+                Console.Error.WriteLine($"Breakfast is ready! Breakfast consists of {plate["slicesOfToast"].Count} slices of toast, {plate["eggs"].Count} eggs, and {plate["slicesOfBacon"].Count} slices of bacon.");
+                Console.Error.WriteLine($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
 
-                foreach (var wasted in burned)
+                foreach (var wasted in garbage)
                 {
-                    Console.Error.WriteLine($"   - {wasted.TypeName} {wasted.Id} {wasted.Status}");
+                    if (wasted is ICookable cookable)
+                    {
+                        Console.Error.WriteLine($"   - {cookable.TypeName} {cookable.Id} {cookable.Status}");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
+                    }
                 }
 
                 return 0;
