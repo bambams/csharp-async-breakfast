@@ -297,7 +297,7 @@ namespace AsyncBreakfast
             var diffPercent = difference / targetDoneness_ * 100;
             var totalPercent = after / targetDoneness_ * 100;
 
-            Action randomDelay = async () =>
+            Func<Task> randomDelay = async () =>
             {
                 var duration = random.Next(0, 250);
 
@@ -306,11 +306,11 @@ namespace AsyncBreakfast
                 await Task.Delay(duration);
             };
 
-            randomDelay();
+            await randomDelay();
 
             Console.Error.WriteLine($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
 
-            randomDelay();
+            await randomDelay();
 
             UpdateStatus();
 
