@@ -27,6 +27,13 @@ namespace AsyncBreakfast
                     { "slicesOfBread", new List<ICookable>() },
                 };
 
+                var batches = new List<List<ICookable>>
+                {
+                    cooking["slicesOfBread"],
+                    cooking["slicesOfBacon"],
+                    cooking["eggs"],
+                };
+
                 var plate = new Dictionary<string,List<ICookable>>
                 {
                     { "eggs", new List<ICookable>() },
@@ -37,18 +44,33 @@ namespace AsyncBreakfast
                 FryingPan fryingPan = null;
                 Toaster toaster = null;
 
-                Func<Bacon, Bacon> applyBaconEvents = bacon =>
+                Action<ICookable> trash = item  =>
                 {
-                    bacon.Burned += (sender, args) => garbage.Push(bacon);
-                    bacon.Cooked += (sender, args) => plate["slicesOfBacon"].Add(bacon);
+                    garbage.Push(item);
 
-                    bacon.Done += (sender, args) =>
+                    foreach (var batch in batches)
                     {
-                        cooking["slicesOfBacon"].Remove(bacon);
-                        fryingPan.Remove(bacon);
+                        if (batch.Contains(item))
+                        {
+                            batch.Remove(item);
+
+                            Console.Error.WriteLine($"Trashing item {item.Status} {item.TypeName} {item.Id}...");
+                        }
+                    }
+                };
+
+                Func<Bacon, Bacon> applyBaconEvents = b =>
+                {
+                    b.Burned += (sender, args) => trash(b);
+                    b.Cooked += (sender, args) => plate["slicesOfBacon"].Add(b);
+
+                    b.Done += (sender, args) =>
+                    {
+                        cooking["slicesOfBacon"].Remove(b);
+                        fryingPan.Remove(b);
                     };
 
-                    return bacon;
+                    return b;
                 };
 
                 Func<Bread, Bread> applyBreadEvents = b =>
@@ -66,7 +88,7 @@ namespace AsyncBreakfast
 
                 Func<Egg, Egg> applyEggEvents = e =>
                 {
-                    e.Burned += (sender, args) => garbage.Push(e);
+                    e.Burned += (sender, args) => trash(e);
                     e.Cooked += (sender, args) => plate["eggs"].Add(e);
 
                     e.Done += (sender, args) =>
@@ -108,13 +130,6 @@ namespace AsyncBreakfast
                 toaster = createToaster();
 
                 var cookers = new BaseCooker[] { fryingPan, toaster, };
-
-                var batches = new List<List<ICookable>>
-                {
-                    cooking["slicesOfBread"],
-                    cooking["slicesOfBacon"],
-                    cooking["eggs"],
-                };
 
                 for (int i=0, l=2; i<l; i++)
                 {
