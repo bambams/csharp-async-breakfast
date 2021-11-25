@@ -575,6 +575,9 @@ namespace AsyncBreakfast
             foreach (var cookable in contents)
             {
                 var energyPerFrame = energyPerFrame_();
+
+                Console.Error.WriteLine($"Cooking with {energyPerFrame} randomized energy per frame...");
+
                 var cookTask = cookable.CookAsync(frames, energyPerFrame, random);
 
                 tasks.Add(cookTask);
