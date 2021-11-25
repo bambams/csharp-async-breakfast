@@ -48,19 +48,30 @@ namespace AsyncBreakfast
                 FryingPan fryingPan = null;
                 Toaster toaster = null;
 
+                Action purgeGarbage = () =>
+                {
+                    foreach (var item in garbage)
+                    {
+                        if (item is ICookable cookable)
+                        {
+                            foreach (var batch in cooking.Values.Union(plate.Values))
+                            {
+                                if (batch.Contains(cookable))
+                                {
+                                    batch.Remove(cookable);
+                                }
+                            }
+                        }
+                    }
+                };
+
                 Action<ICookable> trash = item  =>
                 {
                     garbage.Push(item);
 
-                    foreach (var batch in batches)
-                    {
-                        if (batch.Contains(item))
-                        {
-                            batch.Remove(item);
+                    Console.Error.WriteLine($"Trashing item {item.Status} {item.TypeName} {item.Id}...");
 
-                            Console.Error.WriteLine($"Trashing item {item.Status} {item.TypeName} {item.Id}...");
-                        }
-                    }
+                    purgeGarbage();
                 };
 
                 Func<Bacon, Bacon> applyBaconEvents = b =>
@@ -175,6 +186,8 @@ namespace AsyncBreakfast
                             await cooker.CookAsync(1, random);
                         }
                     }
+
+                    purgeGarbage();
 
                     foreach (var batch in batches.Where(o => o.Count == 0).ToList())
                     {
