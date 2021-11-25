@@ -31,13 +31,6 @@ namespace AsyncBreakfast
                     { SlicesOfBreadKey, new List<ICookable>() },
                 };
 
-                var batches = new List<List<ICookable>>
-                {
-                    cooking[SlicesOfBreadKey],
-                    cooking[SlicesOfBaconKey],
-                    cooking[EggsKey],
-                };
-
                 var plate = new Dictionary<string,List<ICookable>>
                 {
                     { EggsKey, new List<ICookable>() },
@@ -163,6 +156,13 @@ namespace AsyncBreakfast
                 {
                     cooking[SlicesOfBaconKey].Add(createBacon());
                 }
+
+                var batches = new List<List<ICookable>>
+                {
+                    cooking[SlicesOfBreadKey],
+                    cooking[SlicesOfBaconKey],
+                    cooking[EggsKey],
+                };
 
                 while (batches.Any())
                 {
