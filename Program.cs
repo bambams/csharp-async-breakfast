@@ -74,8 +74,8 @@ namespace AsyncBreakfast
 
                     b.Done += (sender, args) =>
                     {
-                        cooking[SlicesOfBaconKey].Remove(b);
                         fryingPan.Remove(b);
+                        cooking[SlicesOfBaconKey].Remove(b);
                     };
 
                     return b;
@@ -87,8 +87,8 @@ namespace AsyncBreakfast
 
                     b.Done += (sender, args) =>
                     {
-                        cooking[SlicesOfBreadKey].Remove(b);
                         toaster.Remove(b);
+                        cooking[SlicesOfBreadKey].Remove(b);
                     };
 
                     return b;
@@ -101,8 +101,8 @@ namespace AsyncBreakfast
 
                     e.Done += (sender, args) =>
                     {
-                        cooking[EggsKey].Remove(e);
                         fryingPan.Remove(e);
+                        cooking[EggsKey].Remove(e);
                     };
 
                     return e;
