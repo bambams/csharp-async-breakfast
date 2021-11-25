@@ -16,6 +16,8 @@ namespace AsyncBreakfast
         {
             try
             {
+                var random = new Random();
+
                 var garbage = new Stack<object>();
 
                 var cooking = new Dictionary<string,List<ICookable>>
@@ -96,8 +98,11 @@ namespace AsyncBreakfast
                 Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F));
                 Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F));
 
-                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3));
-                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2));
+                const float BaseEnergyPerFrame = 0.25F;
+
+                Func<float> randomize = () => (float)random.NextDouble() * BaseEnergyPerFrame;
+                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize));
+                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize));
 
                 fryingPan = createFryingPan();
                 toaster = createToaster();
@@ -145,7 +150,7 @@ namespace AsyncBreakfast
                     {
                         if (!cooker.Empty)
                         {
-                            await cooker.CookAsync(1, 0.0823F);
+                            await cooker.CookAsync(1, random);
                         }
                     }
 
@@ -194,7 +199,7 @@ namespace AsyncBreakfast
 
     public interface ICookable
     {
-        Task<CookableStatus> CookAsync(int frames, float energyPerFrame);
+        Task<CookableStatus> CookAsync(int frames, float energyPerFrame, Random random);
 
         Guid Id { get; }
 
@@ -242,7 +247,7 @@ namespace AsyncBreakfast
 
         public string TypeName => GetType().Name;
 
-        public async Task<CookableStatus> CookAsync(int frames, float energyPerFrame)
+        public async Task<CookableStatus> CookAsync(int frames, float energyPerFrame, Random random)
         {
             var before = doneness_;
 
@@ -254,11 +259,20 @@ namespace AsyncBreakfast
             var diffPercent = difference / targetDoneness_ * 100;
             var totalPercent = after / targetDoneness_ * 100;
 
-            await Task.Delay(25);
+            Action randomDelay = async () =>
+            {
+                var duration = random.Next(0, 1000);
 
-            Console.Error.WriteLine($"Cooking {TypeName} {Id}... Progressed {diffPercent}%, now {totalPercent}%...");
+                Console.Error.WriteLine($"Simulating load by awaiting a delay of {duration} milliseconds.");
 
-            await Task.Delay(25);
+                await Task.Delay(duration);
+            };
+
+            randomDelay();
+
+            Console.Error.WriteLine($"Cooking {Status} {TypeName} {Id}... Progressed {diffPercent}%, now {totalPercent}%...");
+
+            randomDelay();
 
             UpdateStatus();
 
@@ -445,9 +459,10 @@ namespace AsyncBreakfast
 
     public class BaseCooker
     {
-        public BaseCooker(string name, int capacity)
+        public BaseCooker(string name, int capacity, Func<float> energyPerFrame)
         {
             capacity_ = capacity;
+            energyPerFrame_ = energyPerFrame;
             name_ = name;
         }
 
@@ -460,6 +475,9 @@ namespace AsyncBreakfast
         public int Count => contents_.Count;
 
         public bool Empty => Count == 0;
+
+        protected Func<float> energyPerFrame_;
+        public Func<float> EnergyPerFrame => energyPerFrame_;
 
         protected Guid id_ = Guid.NewGuid();
         public Guid Id => id_;
@@ -514,13 +532,14 @@ namespace AsyncBreakfast
             Remove((IEnumerable<ICookable>)cookables);
         }
 
-        public async Task CookAsync(int frames, float energyPerFrame)
+        public async Task CookAsync(int frames, Random random)
         {
-            List<Task> tasks = new List<Task>();
+            var contents = contents_.ToList();
+            var tasks = new List<Task>();
 
-            foreach (var cookable in contents_)
+            foreach (var cookable in contents)
             {
-                var cookTask = cookable.CookAsync(frames, energyPerFrame);
+                var cookTask = cookable.CookAsync(frames, energyPerFrame_(), random);
                 var continueTask = cookTask.ContinueWith(_ => Console.Error.WriteLine($"The {cookable.TypeName} {cookable.Id} sizzles..."));
 
                 tasks.Add(continueTask);
@@ -558,16 +577,16 @@ namespace AsyncBreakfast
 
     public class FryingPan: BaseCooker
     {
-        public FryingPan(int capacity):
-            base("Frying Pan", capacity)
+        public FryingPan(int capacity, Func<float> energyPerFrame):
+            base("Frying Pan", capacity, energyPerFrame)
         {
         }
     }
 
     public class Toaster: BaseCooker
     {
-        public Toaster(int capacity):
-            base("Toaster", capacity)
+        public Toaster(int capacity, Func<float> energyPerFrame):
+            base("Toaster", capacity, energyPerFrame)
         {
         }
     }
