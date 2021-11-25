@@ -47,7 +47,7 @@ namespace AsyncBreakfast
                     {
                         if (item is ICookable cookable)
                         {
-                            foreach (var batch in cooking.Values.Union(plate.Values))
+                            foreach (var batch in cooking.Values.Union(plate.Values).Union(new[] { fryingPan.Contents, toaster.Contents }))
                             {
                                 if (batch.Contains(cookable))
                                 {
