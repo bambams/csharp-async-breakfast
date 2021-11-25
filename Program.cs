@@ -16,29 +16,33 @@ namespace AsyncBreakfast
         {
             try
             {
+                const string EggsKey = "eggs";
+                const string SlicesOfBaconKey = "slicesOfBacon";
+                const string SlicesOfBreadKey = "slicesOfBread";
+
                 var random = new Random();
 
                 var garbage = new Stack<object>();
 
                 var cooking = new Dictionary<string,List<ICookable>>
                 {
-                    { "eggs", new List<ICookable>() },
-                    { "slicesOfBacon", new List<ICookable>() },
-                    { "slicesOfBread", new List<ICookable>() },
+                    { EggsKey, new List<ICookable>() },
+                    { SlicesOfBaconKey, new List<ICookable>() },
+                    { SlicesOfBreadKey, new List<ICookable>() },
                 };
 
                 var batches = new List<List<ICookable>>
                 {
-                    cooking["slicesOfBread"],
-                    cooking["slicesOfBacon"],
-                    cooking["eggs"],
+                    cooking[SlicesOfBreadKey],
+                    cooking[SlicesOfBaconKey],
+                    cooking[EggsKey],
                 };
 
                 var plate = new Dictionary<string,List<ICookable>>
                 {
-                    { "eggs", new List<ICookable>() },
-                    { "slicesOfBacon", new List<ICookable>() },
-                    { "slicesOfToast", new List<ICookable>() },
+                    { EggsKey, new List<ICookable>() },
+                    { SlicesOfBaconKey, new List<ICookable>() },
+                    { SlicesOfBreadKey, new List<ICookable>() },
                 };
 
                 FryingPan fryingPan = null;
@@ -62,11 +66,11 @@ namespace AsyncBreakfast
                 Func<Bacon, Bacon> applyBaconEvents = b =>
                 {
                     b.Burned += (sender, args) => trash(b);
-                    b.Cooked += (sender, args) => plate["slicesOfBacon"].Add(b);
+                    b.Cooked += (sender, args) => plate[SlicesOfBaconKey].Add(b);
 
                     b.Done += (sender, args) =>
                     {
-                        cooking["slicesOfBacon"].Remove(b);
+                        cooking[SlicesOfBaconKey].Remove(b);
                         fryingPan.Remove(b);
                     };
 
@@ -75,11 +79,11 @@ namespace AsyncBreakfast
 
                 Func<Bread, Bread> applyBreadEvents = b =>
                 {
-                    b.Burned += (sender, args) => plate["slicesOfToast"].Add(b);
+                    b.Burned += (sender, args) => plate[SlicesOfBreadKey].Add(b);
 
                     b.Done += (sender, args) =>
                     {
-                        cooking["slicesOfBread"].Remove(b);
+                        cooking[SlicesOfBreadKey].Remove(b);
                         toaster.Remove(b);
                     };
 
@@ -89,11 +93,11 @@ namespace AsyncBreakfast
                 Func<Egg, Egg> applyEggEvents = e =>
                 {
                     e.Burned += (sender, args) => trash(e);
-                    e.Cooked += (sender, args) => plate["eggs"].Add(e);
+                    e.Cooked += (sender, args) => plate[EggsKey].Add(e);
 
                     e.Done += (sender, args) =>
                     {
-                        cooking["eggs"].Remove(e);
+                        cooking[EggsKey].Remove(e);
                         fryingPan.Remove(e);
                     };
 
@@ -134,19 +138,19 @@ namespace AsyncBreakfast
                 const int NumToast = 2;
                 for (int i=0, l=NumToast; i<l; i++)
                 {
-                    cooking["slicesOfBread"].Add(createBread());
+                    cooking[SlicesOfBreadKey].Add(createBread());
                 }
 
                 const int NumEggs = 3;
                 for (int i=0, l=NumEggs; i<l; i++)
                 {
-                    cooking["eggs"].Add(createEgg());
+                    cooking[EggsKey].Add(createEgg());
                 }
 
                 const int NumBacon = 3;
                 for (int i=0, l=NumBacon; i<l; i++)
                 {
-                    cooking["slicesOfBacon"].Add(createBacon());
+                    cooking[SlicesOfBaconKey].Add(createBacon());
                 }
 
                 while (batches.Any())
@@ -155,7 +159,7 @@ namespace AsyncBreakfast
                     {
                         foreach (var batch in batches)
                         {
-                            BaseCooker cooker = batch == cooking["slicesOfBread"] ? (BaseCooker)toaster : (BaseCooker)fryingPan;
+                            BaseCooker cooker = batch == cooking[SlicesOfBreadKey] ? (BaseCooker)toaster : (BaseCooker)fryingPan;
 
                             if (batch.Count <= cooker.Space)
                             {
@@ -178,7 +182,7 @@ namespace AsyncBreakfast
                     }
                 }
 
-                Console.Error.WriteLine($"Breakfast is ready! Breakfast consists of {plate["slicesOfToast"].Count} slices of toast, {plate["eggs"].Count} eggs, and {plate["slicesOfBacon"].Count} slices of bacon.");
+                Console.Error.WriteLine($"Breakfast is ready! Breakfast consists of {plate[SlicesOfBreadKey].Count} slices of toast, {plate[EggsKey].Count} eggs, and {plate[SlicesOfBaconKey].Count} slices of bacon.");
                 Console.Error.WriteLine($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
 
                 foreach (var wasted in garbage)
