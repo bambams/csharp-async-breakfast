@@ -66,52 +66,47 @@ namespace AsyncBreakfast
                     }
                 };
 
-                Action<ICookable> trash = item  =>
+                Action<string, BaseCooker, ICookable> finishCooking = (section, cooker, cookable) =>
                 {
-                    garbage.Push(item);
+                    cooking[section].Remove(cookable);
+                    cooker.Remove(cookable);
+                };
 
-                    Console.Error.WriteLine($"Trashing item {item.Status} {item.TypeName} {item.Id}...");
+                Action<string, BaseCooker, ICookable> moveToPlate = (section, cooker, cookable) =>
+                {
+                    finishCooking(section, cooker, cookable);
+                    plate[section].Add(cookable);
+                };
+
+                Action<string, BaseCooker, ICookable> trash = (section, cooker, cookable)  =>
+                {
+                    finishCooking(section, cooker, cookable);
+                    garbage.Push(cookable);
+
+                    Console.Error.WriteLine($"Trashing item {cookable.Status} {cookable.TypeName} {cookable.Id}...");
 
                     purgeGarbage();
                 };
 
                 Func<Bacon, Bacon> applyBaconEvents = b =>
                 {
-                    b.Burned += (sender, args) => trash(b);
-                    b.Cooked += (sender, args) => plate[SlicesOfBaconKey].Add(b);
-
-                    b.Done += (sender, args) =>
-                    {
-                        fryingPan.Remove(b);
-                        cooking[SlicesOfBaconKey].Remove(b);
-                    };
+                    b.Burned += (sender, args) => trash(SlicesOfBaconKey, fryingPan, b);
+                    b.Cooked += (sender, args) => moveToPlate(SlicesOfBaconKey, fryingPan, b);
 
                     return b;
                 };
 
                 Func<Bread, Bread> applyBreadEvents = b =>
                 {
-                    b.Burned += (sender, args) => plate[SlicesOfBreadKey].Add(b);
-
-                    b.Done += (sender, args) =>
-                    {
-                        toaster.Remove(b);
-                        cooking[SlicesOfBreadKey].Remove(b);
-                    };
+                    b.Burned += (sender, args) => moveToPlate(SlicesOfBreadKey, toaster, b);
 
                     return b;
                 };
 
                 Func<Egg, Egg> applyEggEvents = e =>
                 {
-                    e.Burned += (sender, args) => trash(e);
-                    e.Cooked += (sender, args) => plate[EggsKey].Add(e);
-
-                    e.Done += (sender, args) =>
-                    {
-                        fryingPan.Remove(e);
-                        cooking[EggsKey].Remove(e);
-                    };
+                    e.Burned += (sender, args) => trash(EggsKey, fryingPan, e);
+                    e.Cooked += (sender, args) => moveToPlate(EggsKey, fryingPan, e);
 
                     return e;
                 };
