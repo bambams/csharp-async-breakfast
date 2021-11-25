@@ -70,5 +70,5 @@ if !found! == 0 (
     )
 )
 
-call "!compiler!" /debug Breakfast.cs || exit /b !ERRORLEVEL!
-Breakfast.exe %*
+call "!compiler!" /debug Program.cs || exit /b !ERRORLEVEL!
+Program.exe %*

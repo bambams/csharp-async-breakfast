@@ -1,2 +1,5 @@
 ﻿*.exe
 *.pdb
+.vs/
+bin/
+obj/

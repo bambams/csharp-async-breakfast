@@ -132,7 +132,7 @@ namespace AsyncBreakfast
                     {
                         foreach (var batch in batches)
                         {
-                            BaseCooker cooker = batch == cooking["slicesOfBread"] ? toaster : fryingPan;
+                            BaseCooker cooker = batch == cooking["slicesOfBread"] ? (BaseCooker)toaster : (BaseCooker)fryingPan;
 
                             if (batch.Count <= cooker.Space)
                             {
