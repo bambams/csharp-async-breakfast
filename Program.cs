@@ -62,7 +62,14 @@ namespace AsyncBreakfast
                 Func<Bacon, Bacon> applyBaconEvents = b =>
                 {
                     b.Burned += (sender, args) => trash(b);
-                    b.Cooked += (sender, args) => plate["slicesOfBacon"].Add(b);
+
+                    b.Cooked += (sender, args) =>
+                    {
+                        if (b.Status == CookableStatus.Cooked)
+                        {
+                            plate["slicesOfBacon"].Add(b);
+                        }
+                    };
 
                     b.Done += (sender, args) =>
                     {
@@ -89,7 +96,14 @@ namespace AsyncBreakfast
                 Func<Egg, Egg> applyEggEvents = e =>
                 {
                     e.Burned += (sender, args) => trash(e);
-                    e.Cooked += (sender, args) => plate["eggs"].Add(e);
+
+                    e.Cooked += (sender, args) =>
+                    {
+                        if (e.Status == CookableStatus.Cooked)
+                        {
+                            plate["eggs"].Add(e);
+                        }
+                    };
 
                     e.Done += (sender, args) =>
                     {
