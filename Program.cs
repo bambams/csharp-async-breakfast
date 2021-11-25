@@ -47,7 +47,10 @@ namespace AsyncBreakfast
                     {
                         if (item is ICookable cookable)
                         {
-                            foreach (var batch in cooking.Values.Union(plate.Values).Union(new[] { fryingPan.Contents, toaster.Contents }))
+                            fryingPan.PurgeGarbage(cookable);
+                            toaster.PurgeGarbage(cookable);
+
+                            foreach (var batch in cooking.Values.Union(plate.Values))
                             {
                                 if (batch.Contains(cookable))
                                 {
@@ -505,7 +508,7 @@ namespace AsyncBreakfast
         public int Capacity => capacity_;
 
         protected List<ICookable> contents_ = new List<ICookable>();
-        public List<ICookable> Contents => contents_;
+        public IReadOnlyList<ICookable> Contents => contents_.AsReadOnly();
 
         public int Count => contents_.Count;
 
@@ -586,6 +589,14 @@ namespace AsyncBreakfast
             Console.Error.WriteLine($"{Name} {Id} is cooking {Count} items...");
 
             await Task.WhenAll(tasks);
+        }
+
+        public void PurgeGarbage(ICookable trash)
+        {
+            if (contents_.Contains(trash))
+            {
+                contents_.Remove(trash);
+            }
         }
 
         #region Events
