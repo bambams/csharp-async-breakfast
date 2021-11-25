@@ -279,7 +279,7 @@ namespace AsyncBreakfast
 
             Action randomDelay = async () =>
             {
-                var duration = random.Next(0, 1000);
+                var duration = random.Next(0, 250);
 
                 Console.Error.WriteLine($"Simulating load by awaiting a delay of {duration} milliseconds.");
 
@@ -288,7 +288,7 @@ namespace AsyncBreakfast
 
             randomDelay();
 
-            Console.Error.WriteLine($"Cooking {Status} {TypeName} {Id}... Progressed {diffPercent}%, now {totalPercent}%...");
+            Console.Error.WriteLine($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
 
             randomDelay();
 
@@ -557,10 +557,10 @@ namespace AsyncBreakfast
 
             foreach (var cookable in contents)
             {
-                var cookTask = cookable.CookAsync(frames, energyPerFrame_(), random);
-                var continueTask = cookTask.ContinueWith(_ => Console.Error.WriteLine($"The {cookable.TypeName} {cookable.Id} sizzles..."));
+                var energyPerFrame = energyPerFrame_();
+                var cookTask = cookable.CookAsync(frames, energyPerFrame, random);
 
-                tasks.Add(continueTask);
+                tasks.Add(cookTask);
             }
 
             Console.Error.WriteLine($"{Name} {Id} is cooking {Count} items...");
