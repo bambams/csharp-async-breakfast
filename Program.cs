@@ -131,17 +131,20 @@ namespace AsyncBreakfast
 
                 var cookers = new BaseCooker[] { fryingPan, toaster, };
 
-                for (int i=0, l=2; i<l; i++)
+                const int NumToast = 2;
+                for (int i=0, l=NumToast; i<l; i++)
                 {
                     cooking["slicesOfBread"].Add(createBread());
                 }
 
-                for (int i=0, l=3; i<l; i++)
+                const int NumEggs = 3;
+                for (int i=0, l=NumEggs; i<l; i++)
                 {
                     cooking["eggs"].Add(createEgg());
                 }
 
-                for (int i=0, l=3; i<l; i++)
+                const int NumBacon = 3;
+                for (int i=0, l=NumBacon; i<l; i++)
                 {
                     cooking["slicesOfBacon"].Add(createBacon());
                 }
