@@ -7,6 +7,9 @@ namespace AsyncBreakfast
 {
     public class ExampleProgram
     {
+        protected bool verbose_;
+        public bool Verbose => verbose_;
+
         public async static Task<int> Main(string[] args)
         {
             return await new ExampleProgram().RunAsync(args);
@@ -16,6 +19,8 @@ namespace AsyncBreakfast
         {
             try
             {
+                verbose_ = args.Contains("--verbose") || args.Contains("-v");
+
                 const string EggsKey = "eggs";
                 const string SlicesOfBaconKey = "slicesOfBacon";
                 const string SlicesOfBreadKey = "slicesOfBread";
@@ -127,15 +132,15 @@ namespace AsyncBreakfast
                     return t;
                 };
 
-                Func<Bacon> createBacon = () => applyBaconEvents(new Bacon(CookableStatus.Raw, 0.0F, 1.0F));
-                Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F));
-                Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F));
+                Func<Bacon> createBacon = () => applyBaconEvents(new Bacon(CookableStatus.Raw, 0.0F, 1.0F, verbose_));
+                Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F, verbose_));
+                Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F, verbose_));
 
                 const float BaseEnergyPerFrame = 0.25F;
 
                 Func<float> randomize = () => (float)random.NextDouble() * BaseEnergyPerFrame;
-                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize));
-                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize));
+                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize, verbose_));
+                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize, verbose_));
 
                 fryingPan = createFryingPan();
                 toaster = createToaster();
@@ -260,11 +265,12 @@ namespace AsyncBreakfast
 
     public class BaseCookable: ICookable
     {
-        public BaseCookable(CookableStatus status, float doneness, float targetDoneness)
+        public BaseCookable(CookableStatus status, float doneness, float targetDoneness, bool verbose)
         {
             doneness_ = doneness;
             status_ = status;
             targetDoneness_ = targetDoneness;
+            verbose_ = verbose;
 
             Burned += _ChainedDone;
             Cooked += _ChainedDone;
@@ -285,6 +291,9 @@ namespace AsyncBreakfast
 
         public string TypeName => GetType().Name;
 
+        protected bool verbose_;
+        public bool Verbose => verbose_;
+
         public async Task<CookableStatus> CookAsync(int frames, float energyPerFrame, Random random)
         {
             var before = doneness_;
@@ -301,14 +310,20 @@ namespace AsyncBreakfast
             {
                 var duration = random.Next(0, 250);
 
-                Console.Error.WriteLine($"Simulating load by awaiting a delay of {duration} milliseconds.");
+                if (verbose_)
+                {
+                    Console.Error.WriteLine($"Simulating load by awaiting a delay of {duration} milliseconds.");
+                }
 
                 await Task.Delay(duration);
             };
 
             await randomDelay();
 
-            Console.Error.WriteLine($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
+            if (verbose_)
+            {
+                Console.Error.WriteLine($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
+            }
 
             await randomDelay();
 
@@ -430,7 +445,10 @@ namespace AsyncBreakfast
 
         protected void _OnStatusUpdated(object sender, StatusUpdatedEventArgs args)
         {
-            Console.Error.WriteLine($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
+            if (verbose_)
+            {
+                Console.Error.WriteLine($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
+            }
 
             switch (args.NewStatus)
             {
@@ -463,24 +481,24 @@ namespace AsyncBreakfast
 
     public class Bacon: BaseCookable
     {
-        public Bacon(CookableStatus status, float doneness, float targetDoneness):
-            base(status, doneness, targetDoneness)
+        public Bacon(CookableStatus status, float doneness, float targetDoneness, bool verbose):
+            base(status, doneness, targetDoneness, verbose)
         {
         }
     }
 
     public class Egg: BaseCookable
     {
-        public Egg(CookableStatus status, float doneness, float targetDoneness):
-            base(status, doneness, targetDoneness)
+        public Egg(CookableStatus status, float doneness, float targetDoneness, bool verbose):
+            base(status, doneness, targetDoneness, verbose)
         {
         }
     }
 
     public class Bread: BaseCookable
     {
-        public Bread(CookableStatus status, float doneness, float targetDoneness):
-            base(status, doneness, targetDoneness)
+        public Bread(CookableStatus status, float doneness, float targetDoneness, bool verbose):
+            base(status, doneness, targetDoneness, verbose)
         {
         }
     }
@@ -497,11 +515,12 @@ namespace AsyncBreakfast
 
     public class BaseCooker
     {
-        public BaseCooker(string name, int capacity, Func<float> energyPerFrame)
+        public BaseCooker(string name, int capacity, Func<float> energyPerFrame, bool verbose)
         {
             capacity_ = capacity;
             energyPerFrame_ = energyPerFrame;
             name_ = name;
+            verbose_ = verbose;
         }
 
         protected int capacity_;
@@ -525,6 +544,9 @@ namespace AsyncBreakfast
 
         public int Space => capacity_ - Count;
 
+        protected bool verbose_;
+        public bool Verbose => verbose_;
+
         public void Add(IEnumerable<ICookable> cookables)
         {
             var count = cookables.Count();
@@ -534,10 +556,10 @@ namespace AsyncBreakfast
             {
                 throw new InvalidOperationException($"Cannot add {count} items to {name_} {id_} because it can only hold {capacity_} items and already contains {contentsCount}.");
             }
-            //else
-            //{
-            //    Console.Error.WriteLine($"{Name} {Id} should have capacity for {count} items because it only contains {contentsCount} items and supports {Capacity}.");
-            //}
+            else if (verbose_)
+            {
+                Console.Error.WriteLine($"{Name} {Id} should have capacity for {count} items. It supports {Capacity} items and it only contains {contentsCount} items.");
+            }
 
             foreach (var cookable in cookables)
             {
@@ -579,14 +601,20 @@ namespace AsyncBreakfast
             {
                 var energyPerFrame = energyPerFrame_();
 
-                Console.Error.WriteLine($"Cooking with {energyPerFrame} randomized energy per frame...");
+                if (verbose_)
+                {
+                    Console.Error.WriteLine($"Cooking with {energyPerFrame} randomized energy per frame...");
+                }
 
                 var cookTask = cookable.CookAsync(frames, energyPerFrame, random);
 
                 tasks.Add(cookTask);
             }
 
-            Console.Error.WriteLine($"{Name} {Id} is cooking {Count} items...");
+            if (verbose_)
+            {
+                Console.Error.WriteLine($"{Name} {Id} is cooking {Count} items...");
+            }
 
             await Task.WhenAll(tasks);
         }
@@ -626,16 +654,16 @@ namespace AsyncBreakfast
 
     public class FryingPan: BaseCooker
     {
-        public FryingPan(int capacity, Func<float> energyPerFrame):
-            base("Frying Pan", capacity, energyPerFrame)
+        public FryingPan(int capacity, Func<float> energyPerFrame, bool verbose):
+            base("Frying Pan", capacity, energyPerFrame, verbose)
         {
         }
     }
 
     public class Toaster: BaseCooker
     {
-        public Toaster(int capacity, Func<float> energyPerFrame):
-            base("Toaster", capacity, energyPerFrame)
+        public Toaster(int capacity, Func<float> energyPerFrame, bool verbose):
+            base("Toaster", capacity, energyPerFrame, verbose)
         {
         }
     }
