@@ -17,7 +17,7 @@ namespace AsyncBreakfast
         {
             try
             {
-                Communication.Instance.Verbose = args.Count(arg => arg == "--verbose" || arg == "-v");
+                Communication.Current.Verbose = args.Count(arg => arg == "--verbose" || arg == "-v");
 
                 const string EggsKey = "eggs";
                 const string SlicesOfBaconKey = "slicesOfBacon";
@@ -145,7 +145,7 @@ namespace AsyncBreakfast
                     magicAdd(foodGroup, cookable, plate);
                     //register(plate);
 
-                    Communication.Instance.Say($"Moving {cookable.Status} {cookable.TypeName} {cookable.Id} to the plate...");
+                    Communication.Current.Say($"Moving {cookable.Status} {cookable.TypeName} {cookable.Id} to the plate...");
                 };
 
                 Action<string, BaseCooker, ICookable> trash = (foodGroup, cooker, cookable)  =>
@@ -153,7 +153,7 @@ namespace AsyncBreakfast
                     finishCooking(foodGroup, cooker, cookable);
                     garbage.Push(cookable);
 
-                    Communication.Instance.Say($"Trashing item {cookable.Status} {cookable.TypeName} {cookable.Id}...");
+                    Communication.Current.Say($"Trashing item {cookable.Status} {cookable.TypeName} {cookable.Id}...");
 
                     purgeGarbage();
                 };
@@ -189,16 +189,16 @@ namespace AsyncBreakfast
 
                 Func<FryingPan, FryingPan> applyFryingPanEvents = fp =>
                 {
-                    fp.Added += (sender, args) => Communication.Instance.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fp.Name} {fp.Id}...");
-                    fp.Removed += (sender, args) => Communication.Instance.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fp.Name} {fp.Id}...");
+                    fp.Added += (sender, args) => Communication.Current.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fp.Name} {fp.Id}...");
+                    fp.Removed += (sender, args) => Communication.Current.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fp.Name} {fp.Id}...");
 
                     return fp;
                 };
 
                 Func<Toaster, Toaster> applyToasterEvents = t =>
                 {
-                    t.Added += (sender, args) => Communication.Instance.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {t.Name} {t.Id}...");
-                    t.Removed += (sender, args) => Communication.Instance.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {t.Name} {t.Id}...");
+                    t.Added += (sender, args) => Communication.Current.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {t.Name} {t.Id}...");
+                    t.Removed += (sender, args) => Communication.Current.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {t.Name} {t.Id}...");
 
                     return t;
                 };
@@ -243,7 +243,7 @@ namespace AsyncBreakfast
 
                 while (actives.Any())
                 {
-                    Communication.Instance.SayTRACE($"mealplans:{mealplans.Count} cooking:{cooking.Count} fryingPan:{fryingPan.Count} toaster:{toaster.Count} plate:{plate.Count}");
+                    Communication.Current.SayTRACE($"mealplans:{mealplans.Count} cooking:{cooking.Count} fryingPan:{fryingPan.Count} toaster:{toaster.Count} plate:{plate.Count}");
 
                     foreach (var mealplan in mealplans.ToList())
                     {
@@ -253,7 +253,7 @@ namespace AsyncBreakfast
 
                         if (items.Count <= cooker.Space)
                         {
-                            Communication.Instance.SayTRACE($"There is {cooker.Space} space in the {cooker.Name} {cooker.Id}, and we're adding {items.Count}.");
+                            Communication.Current.SayTRACE($"There is {cooker.Space} space in the {cooker.Name} {cooker.Id}, and we're adding {items.Count}.");
 
                             startCooking(foodGroup, cooker, items);
                         }
@@ -261,7 +261,7 @@ namespace AsyncBreakfast
                         {
                             var firstItem = items.First();
 
-                            Communication.Instance.SayVerbose($"We checked the {cooker.Name} {cooker.Id} which has {cooker.Count} out of {cooker.Capacity} used, but there is not enough space for {items.Count} {firstItem.TypeName} to be added.");
+                            Communication.Current.SayVerbose($"We checked the {cooker.Name} {cooker.Id} which has {cooker.Count} out of {cooker.Capacity} used, but there is not enough space for {items.Count} {firstItem.TypeName} to be added.");
                         }
                     }
 
@@ -273,7 +273,7 @@ namespace AsyncBreakfast
                         }
                         else
                         {
-                            Communication.Instance.SayTRACE($"The {cooker.Name} {cooker.Id} is empty. Nothing to cook.");
+                            Communication.Current.SayTRACE($"The {cooker.Name} {cooker.Id} is empty. Nothing to cook.");
                         }
                     }
 
@@ -298,18 +298,18 @@ namespace AsyncBreakfast
                     }
                 }
 
-                Communication.Instance.Say($"Breakfast is ready! Breakfast consists of {plate[SlicesOfBreadKey].Count} slices of toast, {plate[EggsKey].Count} eggs, and {plate[SlicesOfBaconKey].Count} slices of bacon.");
-                Communication.Instance.Say($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
+                Communication.Current.Say($"Breakfast is ready! Breakfast consists of {plate[SlicesOfBreadKey].Count} slices of toast, {plate[EggsKey].Count} eggs, and {plate[SlicesOfBaconKey].Count} slices of bacon.");
+                Communication.Current.Say($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
 
                 foreach (var wasted in garbage)
                 {
                     if (wasted is ICookable cookable)
                     {
-                        Communication.Instance.Say($"   - {cookable.TypeName} {cookable.Id} {cookable.Status}");
+                        Communication.Current.Say($"   - {cookable.TypeName} {cookable.Id} {cookable.Status}");
                     }
                     else
                     {
-                        Communication.Instance.Say($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
+                        Communication.Current.Say($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
                     }
                 }
 
@@ -317,7 +317,7 @@ namespace AsyncBreakfast
             }
             catch (Exception ex)
             {
-                Communication.Instance.Say($"Failed to cook breakfast: {ex}");
+                Communication.Current.Say($"Failed to cook breakfast: {ex}");
             }
 
             return -1;
@@ -406,14 +406,14 @@ namespace AsyncBreakfast
             {
                 var duration = random.Next(0, 250);
 
-                Communication.Instance.SayVerbose($"Simulating load by awaiting a delay of {duration} milliseconds.");
+                Communication.Current.SayVerbose($"Simulating load by awaiting a delay of {duration} milliseconds.");
 
                 await Task.Delay(duration);
             };
 
             await randomDelay();
 
-            Communication.Instance.SayVerbose($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
+            Communication.Current.SayVerbose($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
 
             await randomDelay();
 
@@ -545,7 +545,7 @@ namespace AsyncBreakfast
 
         protected void _OnStatusUpdated(object sender, StatusUpdatedEventArgs args)
         {
-            Communication.Instance.SayVerbose($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
+            Communication.Current.SayVerbose($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
 
             switch (args.NewStatus)
             {
@@ -654,7 +654,7 @@ namespace AsyncBreakfast
             }
             else
             {
-                Communication.Instance.SayVerbose($"{Name} {Id} should have capacity for {count} items. It supports {Capacity} items and it only contains {contentsCount} items.");
+                Communication.Current.SayVerbose($"{Name} {Id} should have capacity for {count} items. It supports {Capacity} items and it only contains {contentsCount} items.");
             }
 
             foreach (var cookable in cookables)
@@ -697,14 +697,14 @@ namespace AsyncBreakfast
             {
                 var energyPerFrame = energyPerFrame_();
 
-                Communication.Instance.SayVerbose($"Cooking with {energyPerFrame} randomized energy per frame...");
+                Communication.Current.SayVerbose($"Cooking with {energyPerFrame} randomized energy per frame...");
 
                 var cookTask = cookable.CookAsync(frames, energyPerFrame, random);
 
                 tasks.Add(cookTask);
             }
 
-            Communication.Instance.SayVerbose($"{Name} {Id} is cooking {Count} items...");
+            Communication.Current.SayVerbose($"{Name} {Id} is cooking {Count} items...");
 
             await Task.WhenAll(tasks);
         }
@@ -760,7 +760,7 @@ namespace AsyncBreakfast
 
     public class Communication
     {
-        public static readonly Communication Instance = new Communication();
+        public static readonly Communication Current = new Communication();
 
         protected int verbose_;
         public int Verbose { get => verbose_; set => verbose_ = value; }
