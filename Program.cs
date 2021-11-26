@@ -76,6 +76,8 @@ namespace AsyncBreakfast
                 {
                     finishCooking(section, cooker, cookable);
                     plate[section].Add(cookable);
+
+                    Console.Error.WriteLine($"Moving {cookable.Status} {cookable.TypeName} {cookable.Id} to the plate...");
                 };
 
                 Action<string, BaseCooker, ICookable> trash = (section, cooker, cookable)  =>
