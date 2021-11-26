@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace AsyncBreakfast
 {
@@ -312,6 +313,8 @@ namespace AsyncBreakfast
                         Communication.Current.Say($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
                     }
                 }
+
+                Communication.Current.SayTRACE(registry.SerializeWorld());
 
                 return garbage.Count;
             }
@@ -812,6 +815,54 @@ namespace AsyncBreakfast
             }
 
             return result.Distinct().ToList();
+        }
+
+        public static string SerializeWorld(this Dictionary<string, IObject> world)
+        {
+            var sb = new StringBuilder("{");
+            var addComma = false;
+            Action maybeComma = () =>
+            {
+                if (addComma)
+                {
+                    sb.Append(", ");
+                }
+
+                addComma = true;
+            };
+
+            foreach (var kv in world)
+            {
+                var key = kv.Key;
+                var value = kv.Value;
+
+                var encodedKey = key
+                    .Replace("\\", "\\\\")
+                    .Replace("\"", "\\\"");
+
+                maybeComma();
+
+                sb.Append('"');
+                sb.Append(encodedKey);
+                sb.Append("\" : ");
+
+                if (value is ICookable cookable)
+                {
+                    sb.Append($"\"{cookable.Status} {cookable.TypeName} {cookable.Id}\"");
+                }
+                else if (value is BaseCooker cooker)
+                {
+                    sb.Append($"\"{cooker.Name} {cooker.Id} {cooker.Count}/{cooker.Capacity}\"");
+                }
+                else
+                {
+                    sb.Append($"\"{value.Id}\"");
+                }
+            }
+
+            sb.Append(']');
+
+            return sb.ToString();
         }
     }
 }
