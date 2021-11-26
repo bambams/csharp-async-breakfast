@@ -24,8 +24,10 @@ namespace AsyncBreakfast
                 const string SlicesOfBreadKey = "slicesOfBread";
 
                 var random = new Random();
-
                 var garbage = new Stack<object>();
+                var registry = new Dictionary<string, IObject>();
+
+                Func<IObject, IObject> created = value => registry[value.Id.ToString()] = value;
 
                 Func<Dictionary<string,List<ICookable>>> initTracker = () => new Dictionary<string,List<ICookable>>
                 {
@@ -201,15 +203,15 @@ namespace AsyncBreakfast
                     return t;
                 };
 
-                Func<Bacon> createBacon = () => applyBaconEvents(new Bacon(CookableStatus.Raw, 0.0F, 1.0F));
-                Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F));
-                Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F));
+                Func<Bacon> createBacon = () => applyBaconEvents((Bacon)created(new Bacon(CookableStatus.Raw, 0.0F, 1.0F)));
+                Func<Egg> createEgg = () => applyEggEvents((Egg)created(new Egg(CookableStatus.Raw, 0.0F, 1.0F)));
+                Func<Bread> createBread = () => applyBreadEvents((Bread)created(new Bread(CookableStatus.Cooked, 1.0F, 1.0F)));
 
                 const float BaseEnergyPerFrame = 0.25F;
 
                 Func<float> randomize = () => (float)random.NextDouble() * BaseEnergyPerFrame;
-                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize));
-                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize));
+                Func<FryingPan> createFryingPan = () => applyFryingPanEvents((FryingPan)created(new FryingPan(3, randomize)));
+                Func<Toaster> createToaster = () => applyToasterEvents((Toaster)created(new Toaster(2, randomize)));
 
                 fryingPan = createFryingPan();
                 toaster = createToaster();
@@ -333,11 +335,14 @@ namespace AsyncBreakfast
         Burned = 0x18,
     }
 
-    public interface ICookable
+    public interface IObject
+    {
+        Guid Id { get; }
+    }
+
+    public interface ICookable: IObject
     {
         Task<CookableStatus> CookAsync(int frames, float energyPerFrame, Random random);
-
-        Guid Id { get; }
 
         CookableStatus Status { get; }
 
@@ -608,7 +613,7 @@ namespace AsyncBreakfast
         public ICookable Cookable { get; protected set; }
     }
 
-    public class BaseCooker
+    public class BaseCooker: IObject
     {
         public BaseCooker(string name, int capacity, Func<float> energyPerFrame)
         {
