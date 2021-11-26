@@ -71,4 +71,4 @@ if !found! == 0 (
 )
 
 call "!compiler!" /debug Program.cs || exit /b !ERRORLEVEL!
-Program.exe %*
+Program.exe -v -v 2>&1 | tee example.txt
