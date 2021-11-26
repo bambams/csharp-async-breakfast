@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -7,9 +8,6 @@ namespace AsyncBreakfast
 {
     public class ExampleProgram
     {
-        protected bool verbose_;
-        public bool Verbose => verbose_;
-
         public async static Task<int> Main(string[] args)
         {
             return await new ExampleProgram().RunAsync(args);
@@ -19,7 +17,7 @@ namespace AsyncBreakfast
         {
             try
             {
-                verbose_ = args.Contains("--verbose") || args.Contains("-v");
+                Communication.Instance.Verbose = args.Count(arg => arg == "--verbose" || arg == "-v");
 
                 const string EggsKey = "eggs";
                 const string SlicesOfBaconKey = "slicesOfBacon";
@@ -29,22 +27,36 @@ namespace AsyncBreakfast
 
                 var garbage = new Stack<object>();
 
-                var cooking = new Dictionary<string,List<ICookable>>
+                Func<Dictionary<string,List<ICookable>>> initTracker = () => new Dictionary<string,List<ICookable>>
                 {
                     { EggsKey, new List<ICookable>() },
                     { SlicesOfBaconKey, new List<ICookable>() },
                     { SlicesOfBreadKey, new List<ICookable>() },
                 };
 
-                var plate = new Dictionary<string,List<ICookable>>
+                var mealplans = initTracker();
+                var cooking = initTracker();
+                var plate = initTracker();
+
+                var actives = new List<Dictionary<string,List<ICookable>>>
                 {
-                    { EggsKey, new List<ICookable>() },
-                    { SlicesOfBaconKey, new List<ICookable>() },
-                    { SlicesOfBreadKey, new List<ICookable>() },
+                    mealplans,
                 };
 
                 FryingPan fryingPan = null;
                 Toaster toaster = null;
+
+                Action<string,ICookable,Dictionary<string,List<ICookable>>> magicAdd = (key, cookable, tracker) =>
+                {
+                    if (!tracker.ContainsKey(key))
+                    {
+                        tracker[key] = new List<ICookable>();
+                    }
+
+                    tracker[key].Add(cookable);
+                };
+
+                Action<string, ICookable> plan = (foodGroup, cookable) => magicAdd(foodGroup, cookable, mealplans);
 
                 Action purgeGarbage = () =>
                 {
@@ -55,174 +67,258 @@ namespace AsyncBreakfast
                             fryingPan.PurgeGarbage(cookable);
                             toaster.PurgeGarbage(cookable);
 
-                            foreach (var batch in cooking.Values.Union(plate.Values))
+                            var containers = actives.Inline();
+
+                            foreach (var container in containers)
                             {
-                                if (batch.Contains(cookable))
+                                if (container.Contains(cookable))
                                 {
-                                    batch.Remove(cookable);
+                                    container.Remove(cookable);
                                 }
                             }
                         }
                     }
                 };
 
-                Action<string, BaseCooker, ICookable> finishCooking = (section, cooker, cookable) =>
+                Action<Dictionary<string,List<ICookable>>> register = tracker =>
                 {
-                    cooking[section].Remove(cookable);
+                    if (!actives.Contains(tracker))
+                    {
+                        actives.Add(tracker);
+                    }
+                };
+
+                Action<Dictionary<string, List<ICookable>>> deactivateIfEmpty = tracker =>
+                {
+                    if (!tracker.Any())
+                    {
+                        if (actives.Contains(tracker))
+                        {
+                            actives.Remove(tracker);
+                        }
+                    }
+                };
+
+                Action<string, Dictionary<string, List<ICookable>>> strikeout = (foodGroup, tracker) =>
+                {
+                    tracker.Remove(foodGroup);
+                    deactivateIfEmpty(tracker);
+                };
+
+
+                Action<string, Dictionary<string, List<ICookable>>> maybeStrikeout = (foodGroup, tracker) =>
+                {
+                    if (!tracker[foodGroup].Any())
+                    {
+                        strikeout(foodGroup, tracker);
+                    }
+                };
+
+                Action<string, BaseCooker, ICookable> finishCooking = (foodGroup, cooker, cookable) =>
+                {
                     cooker.Remove(cookable);
+                    strikeout(foodGroup, cooking);
                 };
 
-                Action<string, BaseCooker, ICookable> moveToPlate = (section, cooker, cookable) =>
+                Action<string, BaseCooker, List<ICookable>> startCooking = (foodGroup, cooker, cookables) =>
                 {
-                    finishCooking(section, cooker, cookable);
-                    plate[section].Add(cookable);
+                    if (cookables.Any())
+                    {
+                        cooker.Add(cookables);
 
-                    Console.Error.WriteLine($"Moving {cookable.Status} {cookable.TypeName} {cookable.Id} to the plate...");
+                        strikeout(foodGroup, mealplans);
+
+                        foreach (var cookable in cookables)
+                        {
+                            magicAdd(foodGroup, cookable, cooking);
+                        }
+
+                        register(cooking);
+                    }
                 };
 
-                Action<string, BaseCooker, ICookable> trash = (section, cooker, cookable)  =>
+                Action<string, BaseCooker, ICookable> moveToPlate = (foodGroup, cooker, cookable) =>
                 {
-                    finishCooking(section, cooker, cookable);
+                    finishCooking(foodGroup, cooker, cookable);
+                    magicAdd(foodGroup, cookable, plate);
+                    //register(plate);
+
+                    Communication.Instance.Say($"Moving {cookable.Status} {cookable.TypeName} {cookable.Id} to the plate...");
+                };
+
+                Action<string, BaseCooker, ICookable> trash = (foodGroup, cooker, cookable)  =>
+                {
+                    finishCooking(foodGroup, cooker, cookable);
                     garbage.Push(cookable);
 
-                    Console.Error.WriteLine($"Trashing item {cookable.Status} {cookable.TypeName} {cookable.Id}...");
+                    Communication.Instance.Say($"Trashing item {cookable.Status} {cookable.TypeName} {cookable.Id}...");
 
                     purgeGarbage();
                 };
 
                 Func<Bacon, Bacon> applyBaconEvents = b =>
                 {
-                    b.Burned += (sender, args) => trash(SlicesOfBaconKey, fryingPan, b);
-                    b.Cooked += (sender, args) => moveToPlate(SlicesOfBaconKey, fryingPan, b);
+                    Action<Action<string, BaseCooker, ICookable>> call = f => f(SlicesOfBaconKey, fryingPan, b);
+
+                    b.Burned += (sender, args) => call(trash);
+                    b.Cooked += (sender, args) => call(moveToPlate);
 
                     return b;
                 };
 
                 Func<Bread, Bread> applyBreadEvents = b =>
                 {
-                    b.Burned += (sender, args) => moveToPlate(SlicesOfBreadKey, toaster, b);
+                    Action<Action<string, BaseCooker, ICookable>> call = f => f(SlicesOfBreadKey, toaster, b);
+
+                    b.Burned += (sender, args) => call(moveToPlate);
 
                     return b;
                 };
 
                 Func<Egg, Egg> applyEggEvents = e =>
                 {
-                    e.Burned += (sender, args) => trash(EggsKey, fryingPan, e);
-                    e.Cooked += (sender, args) => moveToPlate(EggsKey, fryingPan, e);
+                    Action<Action<string, BaseCooker, ICookable>> call = f => f(EggsKey, fryingPan, e);
+
+                    e.Burned += (sender, args) => call(trash);
+                    e.Cooked += (sender, args) => call(moveToPlate);
 
                     return e;
                 };
 
                 Func<FryingPan, FryingPan> applyFryingPanEvents = fp =>
                 {
-                    fp.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fp.Name} {fp.Id}...");
-                    fp.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fp.Name} {fp.Id}...");
+                    fp.Added += (sender, args) => Communication.Instance.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {fp.Name} {fp.Id}...");
+                    fp.Removed += (sender, args) => Communication.Instance.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {fp.Name} {fp.Id}...");
 
                     return fp;
                 };
 
                 Func<Toaster, Toaster> applyToasterEvents = t =>
                 {
-                    t.Added += (sender, args) => Console.Error.WriteLine($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {t.Name} {t.Id}...");
-                    t.Removed += (sender, args) => Console.Error.WriteLine($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {t.Name} {t.Id}...");
+                    t.Added += (sender, args) => Communication.Instance.Say($"Added {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} to the {t.Name} {t.Id}...");
+                    t.Removed += (sender, args) => Communication.Instance.Say($"Removed {args.Cookable.Status} {args.Cookable.GetType().Name} {args.Cookable.Id} from the {t.Name} {t.Id}...");
 
                     return t;
                 };
 
-                Func<Bacon> createBacon = () => applyBaconEvents(new Bacon(CookableStatus.Raw, 0.0F, 1.0F, verbose_));
-                Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F, verbose_));
-                Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F, verbose_));
+                Func<Bacon> createBacon = () => applyBaconEvents(new Bacon(CookableStatus.Raw, 0.0F, 1.0F));
+                Func<Egg> createEgg = () => applyEggEvents(new Egg(CookableStatus.Raw, 0.0F, 1.0F));
+                Func<Bread> createBread = () => applyBreadEvents(new Bread(CookableStatus.Cooked, 1.0F, 1.0F));
 
                 const float BaseEnergyPerFrame = 0.25F;
 
                 Func<float> randomize = () => (float)random.NextDouble() * BaseEnergyPerFrame;
-                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize, verbose_));
-                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize, verbose_));
+                Func<FryingPan> createFryingPan = () => applyFryingPanEvents(new FryingPan(3, randomize));
+                Func<Toaster> createToaster = () => applyToasterEvents(new Toaster(2, randomize));
 
                 fryingPan = createFryingPan();
                 toaster = createToaster();
 
-                var cookers = new BaseCooker[] { fryingPan, toaster, };
+                var cookers = new Dictionary<string,BaseCooker>
+                {
+                    { EggsKey, fryingPan},
+                    { SlicesOfBreadKey, toaster},
+                    { SlicesOfBaconKey, fryingPan},
+                };
 
                 const int NumToast = 2;
                 for (int i=0, l=NumToast; i<l; i++)
                 {
-                    cooking[SlicesOfBreadKey].Add(createBread());
+                    plan(SlicesOfBreadKey, createBread());
                 }
 
                 const int NumEggs = 3;
                 for (int i=0, l=NumEggs; i<l; i++)
                 {
-                    cooking[EggsKey].Add(createEgg());
+                    plan(EggsKey, createEgg());
                 }
 
                 const int NumBacon = 3;
                 for (int i=0, l=NumBacon; i<l; i++)
                 {
-                    cooking[SlicesOfBaconKey].Add(createBacon());
+                    plan(SlicesOfBaconKey, createBacon());
                 }
 
-                var batches = new List<List<ICookable>>
+                while (actives.Any())
                 {
-                    cooking[SlicesOfBreadKey],
-                    cooking[SlicesOfBaconKey],
-                    cooking[EggsKey],
-                };
+                    Communication.Instance.SayTRACE($"mealplans:{mealplans.Count} cooking:{cooking.Count} fryingPan:{fryingPan.Count} toaster:{toaster.Count} plate:{plate.Count}");
 
-                while (batches.Any())
-                {
-                    if (fryingPan.Count < fryingPan.Capacity)
+                    foreach (var mealplan in mealplans.ToList())
                     {
-                        foreach (var batch in batches)
-                        {
-                            BaseCooker cooker = batch == cooking[SlicesOfBreadKey] ? (BaseCooker)toaster : (BaseCooker)fryingPan;
+                        var foodGroup = mealplan.Key;
+                        var cooker = cookers[foodGroup];
+                        var items = mealplan.Value;
 
-                            if (batch.Count <= cooker.Space)
-                            {
-                                cooker.Add(batch);
-                            }
+                        if (items.Count <= cooker.Space)
+                        {
+                            Communication.Instance.SayTRACE($"There is {cooker.Space} space in the {cooker.Name} {cooker.Id}, and we're adding {items.Count}.");
+
+                            startCooking(foodGroup, cooker, items);
+                        }
+                        else
+                        {
+                            var firstItem = items.First();
+
+                            Communication.Instance.SayVerbose($"We checked the {cooker.Name} {cooker.Id} which has {cooker.Count} out of {cooker.Capacity} used, but there is not enough space for {items.Count} {firstItem.TypeName} to be added.");
                         }
                     }
 
-                    foreach (var cooker in cookers)
+                    foreach (var cooker in cookers.Values.Distinct())
                     {
                         if (!cooker.Empty)
                         {
                             await cooker.CookAsync(1, random);
                         }
+                        else
+                        {
+                            Communication.Instance.SayTRACE($"The {cooker.Name} {cooker.Id} is empty. Nothing to cook.");
+                        }
                     }
 
                     purgeGarbage();
 
-                    foreach (var batch in batches.Where(o => o.Count == 0).ToList())
+                    Action<Dictionary<string,List<ICookable>>> tidy = tracker =>
                     {
-                        batches.Remove(batch);
+                        var empties = tracker
+                            .Where(kv => kv.Value.Count == 0)
+                            .Select(kv => kv.Key)
+                            .ToList();
+
+                        foreach (var foodGroup in empties)
+                        {
+                            maybeStrikeout(foodGroup, tracker);
+                        }
+                    };
+
+                    foreach (var tracker in actives.Distinct())
+                    {
+                        tidy(tracker);
                     }
                 }
 
-                Console.Error.WriteLine($"Breakfast is ready! Breakfast consists of {plate[SlicesOfBreadKey].Count} slices of toast, {plate[EggsKey].Count} eggs, and {plate[SlicesOfBaconKey].Count} slices of bacon.");
-                Console.Error.WriteLine($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
+                Communication.Instance.Say($"Breakfast is ready! Breakfast consists of {plate[SlicesOfBreadKey].Count} slices of toast, {plate[EggsKey].Count} eggs, and {plate[SlicesOfBaconKey].Count} slices of bacon.");
+                Communication.Instance.Say($"We wasted {garbage.Count} items, counting {garbage.Count(o => o is ICookable)} food items:");
 
                 foreach (var wasted in garbage)
                 {
                     if (wasted is ICookable cookable)
                     {
-                        Console.Error.WriteLine($"   - {cookable.TypeName} {cookable.Id} {cookable.Status}");
+                        Communication.Instance.Say($"   - {cookable.TypeName} {cookable.Id} {cookable.Status}");
                     }
                     else
                     {
-                        Console.Error.WriteLine($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
+                        Communication.Instance.Say($"   - {wasted} (unrelated object, {wasted.GetType().FullName})");
                     }
                 }
 
-                return 0;
+                return garbage.Count;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to cook breakfast: {ex}");
+                Communication.Instance.Say($"Failed to cook breakfast: {ex}");
             }
 
-            return 1;
+            return -1;
         }
     }
 
@@ -253,6 +349,8 @@ namespace AsyncBreakfast
 
         event EventHandler Cooked;
 
+        event EventHandler Cooking;
+
         event EventHandler Done;
 
         event EventHandler Frozen;
@@ -262,12 +360,11 @@ namespace AsyncBreakfast
 
     public class BaseCookable: ICookable
     {
-        public BaseCookable(CookableStatus status, float doneness, float targetDoneness, bool verbose)
+        public BaseCookable(CookableStatus status, float doneness, float targetDoneness)
         {
             doneness_ = doneness;
             status_ = status;
             targetDoneness_ = targetDoneness;
-            verbose_ = verbose;
 
             Burned += _ChainedDone;
             Cooked += _ChainedDone;
@@ -288,9 +385,6 @@ namespace AsyncBreakfast
 
         public string TypeName => GetType().Name;
 
-        protected bool verbose_;
-        public bool Verbose => verbose_;
-
         public async Task<CookableStatus> CookAsync(int frames, float energyPerFrame, Random random)
         {
             var before = doneness_;
@@ -307,20 +401,14 @@ namespace AsyncBreakfast
             {
                 var duration = random.Next(0, 250);
 
-                if (verbose_)
-                {
-                    Console.Error.WriteLine($"Simulating load by awaiting a delay of {duration} milliseconds.");
-                }
+                Communication.Instance.SayVerbose($"Simulating load by awaiting a delay of {duration} milliseconds.");
 
                 await Task.Delay(duration);
             };
 
             await randomDelay();
 
-            if (verbose_)
-            {
-                Console.Error.WriteLine($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
-            }
+            Communication.Instance.SayVerbose($"The {Status} {TypeName} {Id} sizzles... Progressed {diffPercent}%, now {totalPercent}%...");
 
             await randomDelay();
 
@@ -376,6 +464,8 @@ namespace AsyncBreakfast
 
         public event EventHandler Cooked;
 
+        public event EventHandler Cooking;
+
         public event EventHandler Done;
 
         public event EventHandler Frozen;
@@ -397,6 +487,14 @@ namespace AsyncBreakfast
             if (Cooked != null)
             {
                 Cooked(this, EventArgs.Empty);
+            }
+        }
+
+        protected void OnCooking()
+        {
+            if (Cooking != null)
+            {
+                Cooking(this, EventArgs.Empty);
             }
         }
 
@@ -442,10 +540,7 @@ namespace AsyncBreakfast
 
         protected void _OnStatusUpdated(object sender, StatusUpdatedEventArgs args)
         {
-            if (verbose_)
-            {
-                Console.Error.WriteLine($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
-            }
+            Communication.Instance.SayVerbose($"Status changed on {TypeName} {Id} from {args.OldStatus} to {args.NewStatus}.");
 
             switch (args.NewStatus)
             {
@@ -454,6 +549,9 @@ namespace AsyncBreakfast
                     break;
                 case CookableStatus.Cooked:
                     OnCooked();
+                    break;
+                case CookableStatus.Cooking:
+                    OnCooking();
                     break;
                 case CookableStatus.Frozen:
                     OnFrozen();
@@ -478,24 +576,24 @@ namespace AsyncBreakfast
 
     public class Bacon: BaseCookable
     {
-        public Bacon(CookableStatus status, float doneness, float targetDoneness, bool verbose):
-            base(status, doneness, targetDoneness, verbose)
+        public Bacon(CookableStatus status, float doneness, float targetDoneness):
+            base(status, doneness, targetDoneness)
         {
         }
     }
 
     public class Egg: BaseCookable
     {
-        public Egg(CookableStatus status, float doneness, float targetDoneness, bool verbose):
-            base(status, doneness, targetDoneness, verbose)
+        public Egg(CookableStatus status, float doneness, float targetDoneness):
+            base(status, doneness, targetDoneness)
         {
         }
     }
 
     public class Bread: BaseCookable
     {
-        public Bread(CookableStatus status, float doneness, float targetDoneness, bool verbose):
-            base(status, doneness, targetDoneness, verbose)
+        public Bread(CookableStatus status, float doneness, float targetDoneness):
+            base(status, doneness, targetDoneness)
         {
         }
     }
@@ -512,12 +610,11 @@ namespace AsyncBreakfast
 
     public class BaseCooker
     {
-        public BaseCooker(string name, int capacity, Func<float> energyPerFrame, bool verbose)
+        public BaseCooker(string name, int capacity, Func<float> energyPerFrame)
         {
             capacity_ = capacity;
             energyPerFrame_ = energyPerFrame;
             name_ = name;
-            verbose_ = verbose;
         }
 
         protected int capacity_;
@@ -541,9 +638,6 @@ namespace AsyncBreakfast
 
         public int Space => capacity_ - Count;
 
-        protected bool verbose_;
-        public bool Verbose => verbose_;
-
         public void Add(IEnumerable<ICookable> cookables)
         {
             var count = cookables.Count();
@@ -553,9 +647,9 @@ namespace AsyncBreakfast
             {
                 throw new InvalidOperationException($"Cannot add {count} items to {name_} {id_} because it can only hold {capacity_} items and already contains {contentsCount}.");
             }
-            else if (verbose_)
+            else
             {
-                Console.Error.WriteLine($"{Name} {Id} should have capacity for {count} items. It supports {Capacity} items and it only contains {contentsCount} items.");
+                Communication.Instance.SayVerbose($"{Name} {Id} should have capacity for {count} items. It supports {Capacity} items and it only contains {contentsCount} items.");
             }
 
             foreach (var cookable in cookables)
@@ -598,20 +692,14 @@ namespace AsyncBreakfast
             {
                 var energyPerFrame = energyPerFrame_();
 
-                if (verbose_)
-                {
-                    Console.Error.WriteLine($"Cooking with {energyPerFrame} randomized energy per frame...");
-                }
+                Communication.Instance.SayVerbose($"Cooking with {energyPerFrame} randomized energy per frame...");
 
                 var cookTask = cookable.CookAsync(frames, energyPerFrame, random);
 
                 tasks.Add(cookTask);
             }
 
-            if (verbose_)
-            {
-                Console.Error.WriteLine($"{Name} {Id} is cooking {Count} items...");
-            }
+            Communication.Instance.SayVerbose($"{Name} {Id} is cooking {Count} items...");
 
             await Task.WhenAll(tasks);
         }
@@ -651,17 +739,74 @@ namespace AsyncBreakfast
 
     public class FryingPan: BaseCooker
     {
-        public FryingPan(int capacity, Func<float> energyPerFrame, bool verbose):
-            base("Frying Pan", capacity, energyPerFrame, verbose)
+        public FryingPan(int capacity, Func<float> energyPerFrame):
+            base("Frying Pan", capacity, energyPerFrame)
         {
         }
     }
 
     public class Toaster: BaseCooker
     {
-        public Toaster(int capacity, Func<float> energyPerFrame, bool verbose):
-            base("Toaster", capacity, energyPerFrame, verbose)
+        public Toaster(int capacity, Func<float> energyPerFrame):
+            base("Toaster", capacity, energyPerFrame)
         {
+        }
+    }
+
+    public class Communication
+    {
+        public static readonly Communication Instance = new Communication();
+
+        protected int verbose_;
+        public int Verbose { get => verbose_; set => verbose_ = value; }
+
+        public void Say(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                throw new ArgumentNullException("Program tried to Say() nothing. That's a programming error.", nameof(message));
+            }
+
+            textWriter_.WriteLine(message);
+        }
+
+        public void SayVerbose(string message)
+        {
+            if (verbose_ > 0)
+            {
+                Say(message);
+            }
+        }
+
+        public void SayTRACE(string message)
+        {
+            if (verbose_ > 1)
+            {
+                Say($"TRACE: {message}");
+            }
+        }
+
+        protected TextWriter textWriter_ = Console.Error;
+    }
+
+    public static class Extensions
+    {
+        public static List<List<ICookable>> Inline(this List<Dictionary<string,List<ICookable>>> lod)
+        {
+            var result = new List<List<ICookable>>();
+
+            foreach (var d in lod)
+            {
+                foreach (var list in d.Values)
+                {
+                    if (list.Any())
+                    {
+                        result.Add(list);
+                    }
+                }
+            }
+
+            return result.Distinct().ToList();
         }
     }
 }
